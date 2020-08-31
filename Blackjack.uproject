@@ -1,0 +1,16 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{868EA916-443B-D33F-6AA3-39A7118EB59F}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "Blackjack",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	]
+}
