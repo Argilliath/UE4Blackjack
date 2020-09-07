@@ -36,6 +36,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Gameplay)
 	bool AreAllPlayersDone() const;
 
+	UFUNCTION(BlueprintCallable, Category = Save)
+	void SaveGameData();
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -72,6 +75,8 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category = Gameplay)
 	ABlackjackCard* SpawnNextCard();
+
+	ABlackjackCard* SpawnSavedCard(const FCardInfo& Info);
 	
 	// Config variables
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = GameConfig)
@@ -129,7 +134,7 @@ protected:
 
 	// Game variables
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Gameplay)
-	EBlackjackGameState CurrentGameState = EBlackjackGameState::RoundStart;
+	EBlackjackGameState CurrentGameState = EBlackjackGameState::Invalid;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Gameplay)
 	TArray<FCardInfo> Deck;

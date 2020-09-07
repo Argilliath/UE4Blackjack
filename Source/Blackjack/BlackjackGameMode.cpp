@@ -3,6 +3,7 @@
 #include "BlackjackGameMode.h"
 
 #include "BlackjackCard.h"
+#include "BlackjackSaveGame.h"
 #include "Blueprint/UserWidget.h"
 #include "Camera/CameraActor.h"
 #include "Engine/TargetPoint.h"
@@ -267,6 +268,49 @@ bool ABlackjackGameMode::AreAllPlayersDone() const
 	return true;
 }
 
+void ABlackjackGameMode::SaveGameData()
+{
+	UBlackjackSaveGame* SaveGame = Cast<UBlackjackSaveGame>(UGameplayStatics::CreateSaveGameObject(UBlackjackSaveGame::StaticClass()));
+	if (SaveGame != nullptr)
+	{
+		// Right now saving can only be done at the end of a round, so we are forcing the state here, this means that some info
+		// in the code below is useless and will be replaced, but this can de updated with a few changes in the ui, so i left that code here
+		SaveGame->SaveData.CurrentGameState = EBlackjackGameState::RoundStart; // CurrentGameState;
+
+		// Save Players information
+		for (const FPlayerInfo& Info : PlayersInfo)
+		{
+			FSavePlayerInfo& SaveInfo = SaveGame->SaveData.PlayersInfo.Emplace_GetRef();
+			SaveInfo.OnHandMoney = Info.OnHandMoney;
+			SaveInfo.OnBetMoney = Info.OnBetMoney;
+			SaveInfo.ChosenPlay = Info.ChosenPlay;
+			SaveInfo.RoundResult = Info.RoundResult;
+			SaveInfo.RemainingDealsLeft = Info.RemainingDealsLeft;
+
+			for (ABlackjackCard* Card : Info.HandCards)
+			{
+				SaveInfo.HandCards.Add(Card->GetCardInfo());
+			}
+		}
+
+		// Save other game data
+		for (const FCardInfo& CardInfo : Deck)
+		{
+			SaveGame->SaveData.Deck.Add(CardInfo);
+		}
+
+		SaveGame->SaveData.bIsFirstChoice = bIsFirstChoice;
+		SaveGame->SaveData.CurrentCardId = CurrentCardId;
+
+		for (ABlackjackCard* Card : DealerCards)
+		{
+			SaveGame->SaveData.DealerCards.Add(Card->GetCardInfo());
+		}
+
+		UGameplayStatics::SaveGameToSlot(SaveGame, SAVE_GAME_SLOT, SAVE_GAME_INDEX);
+	}
+}
+
 void ABlackjackGameMode::BeginPlay()
 {
 	Super::BeginPlay();
@@ -311,15 +355,58 @@ void ABlackjackGameMode::BeginPlay()
 		}
 	}
 
-	// Init players
-	for (int32 i = 0; i < MAX_NUM_PLAYERS; ++i)
+	// If we find a valid save data, restore the game
+	UBlackjackSaveGame* SavedGame = Cast<UBlackjackSaveGame>(UGameplayStatics::LoadGameFromSlot(SAVE_GAME_SLOT, SAVE_GAME_INDEX));
+	if (SavedGame != nullptr)
 	{
-		FPlayerInfo& Info = PlayersInfo.Emplace_GetRef();
-		Info.OnHandMoney = static_cast<float>(InitialPlayerMoney);
-	}
+		// Restore players information
+		int32 i = 0;
+		FBlackjackSaveData SavedData = SavedGame->SaveData;
+		for (const FSavePlayerInfo& SavedInfo : SavedData.PlayersInfo)
+		{
+			FPlayerInfo& Info = PlayersInfo.Emplace_GetRef();
+			Info.OnHandMoney = SavedInfo.OnHandMoney;
+			Info.OnBetMoney = SavedInfo.OnBetMoney;
+			Info.ChosenPlay = SavedInfo.ChosenPlay;
+			Info.RoundResult = SavedInfo.RoundResult;
+			Info.RemainingDealsLeft = SavedInfo.RemainingDealsLeft;
 
-	// Start round
-	ChangeGameState(EBlackjackGameState::WaitForBet);
+			for (const FCardInfo& CardInfo : SavedInfo.HandCards)
+			{
+				GiveCard(i, SpawnSavedCard(CardInfo));
+			}
+
+			++i;
+		}
+
+		// Restore game info along with the dealer's state
+		for (const FCardInfo& CardInfo : SavedData.Deck)
+		{
+			Deck.Add(CardInfo);
+		}
+		
+		bIsFirstChoice = SavedData.bIsFirstChoice;
+		CurrentCardId = SavedData.CurrentCardId;
+
+		for(const FCardInfo& CardInfo : SavedData.DealerCards)
+		{
+			GiveCard(-1, SpawnSavedCard(CardInfo));
+		}
+
+		ChangeGameState(SavedData.CurrentGameState);
+	}
+	else
+	{
+		// Init players
+		for (int32 i = 0; i < MAX_NUM_PLAYERS; ++i)
+		{
+			FPlayerInfo& Info = PlayersInfo.Emplace_GetRef();
+			Info.OnHandMoney = static_cast<float>(InitialPlayerMoney);
+		}
+
+		// Start round
+		ChangeGameState(EBlackjackGameState::WaitForBet);
+	}
 }
 
 void ABlackjackGameMode::BuildAndShuffleDecks()
@@ -396,6 +483,22 @@ ABlackjackCard* ABlackjackGameMode::SpawnNextCard()
 	NewCard->SetCardInfo(Deck[CurrentCardId], BackSprite);
 	NewCard->SetActorTransform(CardDealSpot);
 	CurrentCardId++;
+
+	return NewCard;
+}
+
+ABlackjackCard* ABlackjackGameMode::SpawnSavedCard(const FCardInfo& Info)
+{
+	if (!IsValid(CardTemplate))
+	{
+		return nullptr;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ABlackjackCard* NewCard = GetWorld()->SpawnActor<ABlackjackCard>(CardTemplate, SpawnParams);
+	NewCard->SetCardInfo(Info, BackSprite);
+	NewCard->SetActorTransform(CardDealSpot);
 
 	return NewCard;
 }
