@@ -8,7 +8,7 @@
 #include "Camera/CameraActor.h"
 #include "Engine/TargetPoint.h"
 #include "Kismet/GameplayStatics.h"
-#pragma optimize("", off)
+
 void ABlackjackGameMode::ChangeGameState(EBlackjackGameState NewState)
 {
 	if (NewState != CurrentGameState)
@@ -502,4 +502,3 @@ ABlackjackCard* ABlackjackGameMode::SpawnSavedCard(const FCardInfo& Info)
 
 	return NewCard;
 }
-#pragma optimize("", on)
